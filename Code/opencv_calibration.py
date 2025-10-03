@@ -4,8 +4,6 @@ import cv2
 class OpenCVCalibration:
     def __init__(self, checkerboard_size=(13, 9), square_size=20):
         """
-        Camera Calibration using OpenCV's cv2.calibrateCamera() 
-        
         Parameters:
         -----------
         checkerboard_size : tuple (width, height)
@@ -30,7 +28,6 @@ class OpenCVCalibration:
         self.tvecs = None
         
     def _generate_3d_points(self):
-        """Generate 3D world coordinates for checkerboard corners"""
         num_corners = self.checkerboard_size[0] * self.checkerboard_size[1]
         objp = np.zeros((num_corners, 3), np.float32)
         objp[:, :2] = np.mgrid[0:self.checkerboard_size[0], 
@@ -40,8 +37,6 @@ class OpenCVCalibration:
     
     def detect_corners(self, image_paths):
         """
-        Detect checkerboard corners from images
-        
         Parameters:
         -----------
         image_paths : list of str
@@ -163,7 +158,7 @@ class OpenCVCalibration:
         print("-" * 60)
         
         print("\n" + "=" * 60)
-        print("OpenCV Calibration Done!")
+        print("✨ OpenCV Calibration Done!")
         print("=" * 60)
         
         return self.K, self.dist, self.rvecs, self.tvecs, mean_error

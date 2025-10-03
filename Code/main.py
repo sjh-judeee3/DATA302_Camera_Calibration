@@ -168,4 +168,4 @@ def main():
 
 
 if __name__ == "__main__":
-    zhang_K, opencv_K, zhang_error, opencv_error = main()
+    zhang_K, opencv_K, zhang_er
