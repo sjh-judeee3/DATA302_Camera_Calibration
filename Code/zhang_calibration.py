@@ -354,3 +354,108 @@ class ZhangCalibration:
             print(t)
         
         return self.extrinsics
+    
+    ### Step 5: Reprojection Error Calculation ### 
+    def compute_reprojection_errors(self):
+        """
+        Compute reprojection errors for all images
+        
+        Returns:
+        --------
+        mean_error : float
+            Mean reprojection error across all images
+        """
+        print("\n" + "=" * 60)
+        print("STEP 5: Reprojection Error Calculation")
+        print("=" * 60)
+        
+        if self.K is None or len(self.extrinsics) == 0:
+            print("Intrinsic or Extrinsic parameters not available. Please run previous steps first.")
+            return None
+        
+        total_error = 0
+        total_points = 0
+        errors_per_image = []
+        
+        for i, (obj_pts, img_pts) in enumerate(zip(self.points3d_list, self.points2d_list), 1):
+            R, t = self.extrinsics[i - 1]
+            
+            # 3D points -> homogeneous coordinates (X, Y, Z, 1)
+            pts3d_hom = np.column_stack([obj_pts, np.ones(len(obj_pts))])
+            
+            RT = np.column_stack([R, t])
+            
+            projected_pts = (self.K @ RT @ pts3d_hom.T).T
+            projected_pts /= projected_pts[:, 2] / projected_pts[:, 2:] 
+            
+            # Error calculation
+            errors = np.sqrt(np.sum((img_pts - projected_pts)**2), axis = 1)           
+            img_mean_error = np.mean(errors)
+            img_max_error = np.max(errors)
+            
+            errors_per_image.append((img_mean_error))
+            total_error += np.sum(errors)
+            total_points += len(errors)
+            
+            print(f"[{i}] Mean: {img_mean_error:.4f}, Max: {img_max_error:.4f} px")
+            
+        mean_error = total_error / total_points
+        
+        print("-" * 60)
+        print(f"Overall Mean Reprojection Error: {mean_error:.4f} pixels")
+        print(f"Per-image errors: min={min(errors_per_image):.4f}, "
+              f"max={max(errors_per_image):.4f}")
+        print("-" * 60)
+        
+        return mean_error
+    
+    
+    ### Full Calibration Pipeline ###
+    def calibrate(self, image_paths):
+        """
+        Full Zhang's method calibration pipeline
+        
+        Parameters:
+        -----------
+        image_paths : list of str
+            image file paths lists for calbiration
+        
+        Returns:
+        --------
+        K : ndarray, shape (3, 3)
+            Intrinsic matrix 
+        extrinsics : list of tuple
+            (R, t) for each image
+            R: Rotation matrix (3x3)
+            t: Translation vector (3x1)
+        mean_error : float
+            Mean reprojection error across all images
+        """
+        print("=" * 60)
+        print("Zhang's Method Camera Calibration - Full Pipeline")
+        print("=" * 60)
+        
+        # STEP 1: Detect corners
+        success_count = self.detect_corners(image_paths)
+        
+        if success_count < 3:
+            print("\nError: 최소 3장의 이미지가 필요합니다!")
+            return None, None, None
+        
+        # STEP 2: Homography calculation
+        self.compute_homographies()
+        
+        # STEP 3: Compute Intrinsic Matrix
+        self.compute_intrinsic_matrix()
+        
+        # STEP 4: Compute Extrinsic Parameters
+        self.compute_extrinsics()
+        
+        # STEP 5: Reprojection Error calculation
+        mean_error = self.compute_reprojection_errors()
+        
+        print("\n" + "=" * 60)
+        print("✨ Zhang's Method calibration done!")
+        print("=" * 60)
+        
+        return self.K, self.extrinsics, mean_error
