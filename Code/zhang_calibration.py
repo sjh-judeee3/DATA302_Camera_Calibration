@@ -455,7 +455,7 @@ class ZhangCalibration:
         mean_error = self.compute_reprojection_errors()
         
         print("\n" + "=" * 60)
-        print("✨ Zhang's Method calibration done!")
+        print("Zhang's Method calibration done!")
         print("=" * 60)
         
         return self.K, self.extrinsics, mean_error
