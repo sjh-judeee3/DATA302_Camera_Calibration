@@ -20,7 +20,7 @@ class ZhangCalibration:
         self.square_size = square_size
         
         # 3D World Coordinate (Z=0 plane, same for all images)
-        self.obj_points_3d = self._generate_object_points()
+        self.obj_points_3d = self._generate_3d_points()
         
         # Data from each image
         self.points2d_list = []  # 2D Image Coordinates
@@ -58,6 +58,7 @@ class ZhangCalibration:
         
         return objp
     
+    ### Step 1: Corner Detection ###
     def detect_corners(self, image_paths):
         """
         Detect checkerboard corners in the provided images
@@ -93,18 +94,18 @@ class ZhangCalibration:
                 None
             )
             
-            if ret:
-                # 서브픽셀 정확도로 코너 위치 개선
+            if ret: # if success
+                # Sub-pixel accuracy
                 criteria = (
                     cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,
-                    30,      # 최대 반복 횟수
-                    0.001    # 정확도
+                    30,      
+                    0.001   
                 )
                 corners_refined = cv2.cornerSubPix(
                     gray, 
                     corners, 
-                    (11, 11),    # 탐색 윈도우 크기
-                    (-1, -1),    # 데드존 (사용 안 함)
+                    (11, 11), 
+                    (-1, -1),
                     criteria
                 )
                 
@@ -115,7 +116,7 @@ class ZhangCalibration:
                 print(f"[{i}] corner detection success: {img_path}")
                 print(f" {len(corners_refined)} corners found")
             else:
-                print(f"✗ [{i}] 코너 검출 실패: {img_path}")
+                print(f"✗ [{i}] failed to detect corner: {img_path}")
         
         print("-" * 60)
         print(f"total {len(image_paths)}, success {success_count}")
@@ -125,16 +126,231 @@ class ZhangCalibration:
     
     def get_corner_info(self):
         """
-        검출된 코너 정보 출력 (디버깅용)
+        print out detected corner information (debugging)
         """
         if len(self.points2d_list) == 0:
-            print("검출된 코너가 없습니다!")
+            print("No corner data available. Please run detect_corners() first.")
             return
         
-        print("\n[검출된 코너 정보]")
-        print(f"이미지 개수: {len(self.points2d_list)}")
-        print(f"각 이미지당 코너 개수: {len(self.points2d_list[0])}")
-        print(f"\n첫 번째 이미지의 처음 5개 코너 (2D):")
+        print("\n[Detected Corners]")
+        print(f"Number of images: {len(self.points2d_list)}")
+        print(f"Number of corners per image: {len(self.points2d_list[0])}")
+        print(f"\nFirst 5 corners of first image (2D):")
         print(self.points2d_list[0][:5])
-        print(f"\n대응되는 3D 월드 좌표:")
+        print(f"\nCorresponding 3D world coordinates:")
         print(self.points3d_list[0][:5])
+        
+    ### Step 2: Homography Estimation ###
+    def estimate_homography(self, obj_pts, img_pts):
+        """
+        DLT(Direct Linear Transform) Homography estimation
+        
+        Parameters:
+        -----------
+        obj_pts : ndarray, shape (N, 2)
+            3D world coordinates (X, Y) on Z=0 plane
+        img_pts : ndarray, shape (N, 2)
+            2D image coordinates (u, v)
+        
+        Returns:
+        --------
+        H : ndarray, shape (3, 3)
+            Homography matrix
+        """
+        n = obj_pts.shape[0]  # number of corners
+        A = [] 
+        
+        for i in range(n):
+            X, Y = obj_pts[i, 0], obj_pts[i, 1]
+            u, v = img_pts[i, 0], img_pts[i, 1]
+            
+            A.append([-X, -Y, -1, 0, 0, 0, u*X, u*Y, u])
+            A.append([0, 0, 0, -X, -Y, -1, v*X, v*Y, v])
+        
+        A = np.array(A)
+        
+        # SVD to solve Ah = 0
+        _, _, Vt = np.linalg.svd(A)
+        H = Vt[-1].reshape(3, 3)
+        
+        # Normalize
+        H = H / H[2, 2]
+        
+        return H
+    
+    def compute_homographies(self):
+        print("\n" + "=" * 60)
+        print("STEP 2: Homography calculation")
+        print("=" * 60)
+        
+        if len(self.points2d_list) == 0:
+            print("No corner data available. Please run detect_corners() first.")
+            return
+        
+        for i, (obj_pts, img_pts) in enumerate(zip(self.points3d_list, self.points2d_list), 1):
+            H = self.estimate_homography(obj_pts[:, :2], img_pts)  # Z=0이니까 X,Y만
+            self.homographies.append(H)
+            print(f"[{i}] Homography calculated.")
+        
+        print("-" * 60)
+        print(f"total of {len(self.homographies)} Homography calculations done.")
+        print("-" * 60)
+        
+        # First image's Homography matrix as an example
+        if len(self.homographies) > 0:
+            print(f"\nFirst image's Homography matrix:")
+            print(self.homographies[0])
+        
+        return self.homographies
+    
+    
+    ### Step 3: Intrinsic Parameter Calculation ###
+    def compute_intrinsic_matrix(self):
+        """
+        Zhang's method to compute intrinsic matrix K
+        
+        Returns:
+        --------
+        K : ndarray, shape (3, 3)
+            Intrinsic matrix 
+        """
+        print("\n" + "=" * 60)
+        print("STEP 3: Intrinsic Matrix Calculation")
+        print("=" * 60)
+        
+        if len(self.homographies) == 0:
+            print("Homography not available. Please run compute_homographies() first.")
+            return None
+        
+        def v_ij(H, i, j):
+            """
+            Compute the v_ij vector from Homography H
+            
+            Parameters:
+            -----------
+            H : ndarray, shape (3, 3)
+                Homography matrix
+            i, j : int
+            
+            Returns:
+            --------
+            v : ndarray, shape (6,)
+                v_ij vector
+            """
+            return np.array([
+                H[0, i] * H[0, j],
+                H[0, i] * H[1, j] + H[1, i] * H[0, j],
+                H[1, i] * H[1, j],
+                H[2, i] * H[0, j] + H[0, i] * H[2, j],
+                H[2, i] * H[1, j] + H[1, i] * H[2, j],
+                H[2, i] * H[2, j]
+            ])
+        
+        V = []
+        for idx, H in enumerate(self.homographies, 1):
+            # Constraint 1: v_12 (r1 ⊥ r2)
+            V.append(v_ij(H, 0, 1))
+            
+            # Constraint 2: v_11 - v_22 (|r1| = |r2|)
+            V.append(v_ij(H, 0, 0) - v_ij(H, 1, 1))
+        
+        V = np.array(V)
+        print(f"\nV matrix Size: {V.shape}")
+        
+        # SVD to solve V*b = 0
+        _, _, Vt = np.linalg.svd(V)
+        b = Vt[-1]
+        
+        print(f"b vector: {b}")
+        
+        # Intrinsic parameters from b
+        B11, B12, B22, B13, B23, B33 = b
+        
+        v0 = (B12 * B13 - B11 * B23) / (B11 * B22 - B12**2)
+        lambda_ = B33 - (B13**2 + v0 * (B12 * B13 - B11 * B23)) / B11
+        alpha = np.sqrt(lambda_ / B11)
+        beta = np.sqrt(lambda_ * B11 / (B11 * B22 - B12**2))
+        gamma = -B12 * alpha**2 * beta / lambda_
+        u0 = gamma * v0 / beta - B13 * alpha**2 / lambda_
+        
+        # Intrinsic matrix K
+        self.K = np.array([
+            [alpha, gamma, u0],
+            [0,     beta,  v0],
+            [0,     0,     1 ]
+        ])
+        
+        print("\n" + "-" * 60)
+        print("Intrinsic Matrix K:")
+        print(self.K)
+        print("-" * 60)
+        print(f"\nCamera Parameters:")
+        print(f"  fx (focal length X) = {alpha:.2f}")
+        print(f"  fy (focal length Y) = {beta:.2f}")
+        print(f"  cx (principal point X) = {u0:.2f}")
+        print(f"  cy (principal point Y) = {v0:.2f}")
+        print(f"  skew = {gamma:.6f}")
+        print("-" * 60)
+        
+        return self.K
+
+    ### Step 4: Extrinsic Parameter Calculation ###
+    def compute_extrinsics(self):
+        """
+        Calculate Extrinsic parameters (R, t) for each image
+        
+        Returns:
+        --------
+        extrinsics : list of tuple
+            (R, t) for each image
+            R: Rotation matrix (3x3)
+            t: Translation vector (3x1)
+        """
+        print("\n" + "=" * 60)
+        print("STEP 4: Extrinsic Parameters Calculation")
+        print("=" * 60)
+        
+        if self.K is None:
+            print("Intrinsic matrix not available. Run compute_intrinsic_matrix() first")
+            return None
+        
+        # inverse of K
+        K_inv = np.linalg.inv(self.K)
+        
+        for idx, H in enumerate(self.homographies, 1):
+            h1 = H[:, 0]
+            h2 = H[:, 1]
+            h3 = H[:, 2]
+            
+            # Compute scale lambda
+            lambda_ = 1.0 / np.linalg.norm(K_inv @ h1)
+            
+            # r1, r2, t 
+            r1 = lambda_ * (K_inv @ h1)
+            r2 = lambda_ * (K_inv @ h2)
+            r3 = np.cross(r1, r2)  
+            t = lambda_ * (K_inv @ h3)
+            
+            # Approximate R
+            R_approx = np.column_stack([r1, r2, r3])
+            
+            # SVD to orthogonalize R
+            U, _, Vt = np.linalg.svd(R_approx)
+            R = U @ Vt 
+            self.extrinsics.append((R, t))
+            
+            print(f"[{idx}] Extrinsic parameters calculated.")
+        
+        print("-" * 60)
+        print(f"Total of {len(self.extrinsics)} images' Extrinsic parameters calculated")
+        print("-" * 60)
+        
+        if len(self.extrinsics) > 0:
+            R, t = self.extrinsics[0]
+            print(f"\nFirst image's Extrinsic parameters:")
+            print(f"Rotation matrix R:")
+            print(R)
+            print(f"\nTranslation vector t:")
+            print(t)
+        
+        return self.extrinsics
