@@ -2,9 +2,9 @@ import numpy as np
 import cv2
 
 class OpenCVCalibration:
-    def __init__(self, checkerboard_size=(12, 8), square_size=20):
+    def __init__(self, checkerboard_size=(13, 9), square_size=20):
         """
-        Camera Calibration using OpenCV's cv2.calibrateCamera()
+        Camera Calibration using OpenCV's cv2.calibrateCamera() 
         
         Parameters:
         -----------
@@ -163,7 +163,7 @@ class OpenCVCalibration:
         print("-" * 60)
         
         print("\n" + "=" * 60)
-        print("✨ OpenCV Calibration Done!")
+        print("OpenCV Calibration Done!")
         print("=" * 60)
         
         return self.K, self.dist, self.rvecs, self.tvecs, mean_error
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     
     # OpenCV Calibration
     opencv_calib = OpenCVCalibration(
-        checkerboard_size=(12, 8),
+        checkerboard_size=(13, 9),
         square_size=20
     )
     

@@ -100,12 +100,12 @@ def compare_results(zhang_K, zhang_error, opencv_K, opencv_error):
 def main():
     """Main execution function"""
     
-    image_paths = glob.glob('../Data/*.jpg')
+    image_paths = glob.glob('../Data/*.JPG')
     
     if len(image_paths) == 0:
         print("Error: No images found in 'Data/' folder")
         print("Please add checkerboard images to the Data/ folder")
-        return
+        return None, None, None, None
     
     print("=" * 80)
     print(" " * 25 + "CAMERA CALIBRATION PROJECT")
@@ -113,7 +113,7 @@ def main():
     print(f"\nFound {len(image_paths)} images in Data/ folder")
     
     # Checkerboard configuration
-    checkerboard_size = (12, 8)  
+    checkerboard_size = (13, 9)  
     square_size = 20              
     
     print(f"Checkerboard configuration: {checkerboard_size[0]}x{checkerboard_size[1]} corners")
@@ -168,4 +168,4 @@ def main():
 
 
 if __name__ == "__main__":
-    zhang_K, opencv_K, zhang_error, opencv_error = main()
+    zhang_K, opencv_K, zhang_er

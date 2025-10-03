@@ -4,7 +4,7 @@ import glob
 
 class ZhangCalibration:
     # Initialize parameters
-    def __init__(self, checkerboard_size=(12, 8), square_size=20):
+    def __init__(self, checkerboard_size=(13, 9), square_size=20):
         """
         Camera Calibration with Zhang's Method
         
@@ -12,7 +12,7 @@ class ZhangCalibration:
         -----------
         checkerboard_size : tuple (width, height)
             number of checkerboard's corner
-            size 13x9 -> corners (12, 8)
+            size 13x9 -> corners (13, 9)
         square_size : float
             one square size in mm
         """
@@ -457,6 +457,22 @@ class ZhangCalibration:
         print("\n" + "=" * 60)
         print("Zhang's Method calibration done!")
         print("=" * 60)
+        
+        # 디버깅 정보 추가
+        print("\n" + "=" * 60)
+        print("DEBUG INFORMATION")
+        print("=" * 60)
+        print(f"\n3D points (first 3 corners):")
+        print(self.points3d_list[0][:3])
+        print(f"\n2D points (first 3 corners):")
+        print(self.points2d_list[0][:3])
+        print(f"\nImage size check - 2D points range:")
+        all_2d = np.vstack(self.points2d_list)
+        print(f"  X: [{np.min(all_2d[:, 0]):.1f}, {np.max(all_2d[:, 0]):.1f}]")
+        print(f"  Y: [{np.min(all_2d[:, 1]):.1f}, {np.max(all_2d[:, 1]):.1f}]")
+        print(f"\nFirst Homography H[0,0]: {self.homographies[0][0,0]:.6f}")
+        print(f"K[0,0] (fx): {self.K[0,0]:.2f}")
+        print(f"K[1,1] (fy): {self.K[1,1]:.2f}")
         
         return self.K, self.extrinsics, mean_error
     
