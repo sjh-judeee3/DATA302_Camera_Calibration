@@ -100,7 +100,7 @@ def compare_results(zhang_K, zhang_error, opencv_K, opencv_error):
 def main():
     """Main execution function"""
     
-    image_paths = glob.glob('Data/*.jpg')
+    image_paths = glob.glob('../Data/*.jpg')
     
     if len(image_paths) == 0:
         print("Error: No images found in 'Data/' folder")
