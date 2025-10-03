@@ -386,10 +386,10 @@ class ZhangCalibration:
             RT = np.column_stack([R, t])
             
             projected_pts = (self.K @ RT @ pts3d_hom.T).T
-            projected_pts /= projected_pts[:, 2] / projected_pts[:, 2:] 
+            projected_pts = projected_pts[:, :2] / projected_pts[:, 2:3]
             
             # Error calculation
-            errors = np.sqrt(np.sum((img_pts - projected_pts)**2), axis = 1)           
+            errors = np.sqrt(np.sum((img_pts - projected_pts)**2, axis=1))     
             img_mean_error = np.mean(errors)
             img_max_error = np.max(errors)
             
@@ -439,7 +439,7 @@ class ZhangCalibration:
         success_count = self.detect_corners(image_paths)
         
         if success_count < 3:
-            print("\nError: 최소 3장의 이미지가 필요합니다!")
+            print("\nError: Need at least 3 images!")
             return None, None, None
         
         # STEP 2: Homography calculation
@@ -459,3 +459,21 @@ class ZhangCalibration:
         print("=" * 60)
         
         return self.K, self.extrinsics, mean_error
+    
+    
+if __name__ == "__main__":
+    image_paths = glob.glob('Data/*.jpg')
+    
+    if len(image_paths) == 0:
+        print("Error: Cannot find image")
+        print("Save images in 'Data/'")
+        exit()
+    
+    print(f"Found {len(image_paths)} images \n")
+    
+    calib = ZhangCalibration(
+        checkerboard_size=(12, 8),  
+        square_size=20               
+    )
+    
+    K, extrinsics, mean_error = calib.calibrate(image_paths)

@@ -11,7 +11,6 @@ if __name__ == "__main__":
     
     print(f"Found {len(image_paths)} images \n")
     
-    # 2. Create Calibration Object
     calib = ZhangCalibration(
         checkerboard_size=(12, 8),  
         square_size=20               
